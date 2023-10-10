@@ -1,22 +1,42 @@
+from flask import Flask, request, jsonify
 import numpy as np
-from flask import Flask, request, jsonify, render_template
-from tensorflow.keras.models import load_model
+import tensorflow as tf
+import requests
+from pre_process1 import preprocess_image
+from ImageDataPreparation import load_data
+import os
 
+app = Flask(__name__)
 
-# Create flask app
-flask_app = Flask(__name__)
-loaded_model = load_model('../Aghilas_modele.h5')
+model = tf.keras.models.load_model("../models/Aghilas_modele.h5")
 
-@flask_app.route("/")
-def Home():
-    return render_template("index.html")
-
-@flask_app.route("/predict", methods = ["POST"])
+@app.route('/predict', methods=['POST'])
 def predict():
-    float_features = [float(x) for x in request.form.values()]
-    features = [np.array(float_features)]
-    prediction = model.predict(features)
-    return render_template("index.html", prediction_text = "The flower species is {}".format(prediction))
+    try:
+        file = request.files['file']
+        print("file : ", file)
+        file_path = "temp_image.jpeg"
+        file.save(file_path)
 
-if __name__ == "__main__":
-    flask_app.run(debug=True)
+        img = load_data(file_path)
+        print("img : ", img)
+
+        processed_image = preprocess_image(img)
+
+        print("processed image : ", processed_image)
+        prediction = model.predict(processed_image)
+
+        if prediction > 0.5:
+            result = "Pneumonia"
+        else:
+            result = "Normal"
+
+        os.remove(file_path)
+
+        return jsonify({"result": result})
+
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+if __name__ == '__main__':
+    app.run(debug=True)
