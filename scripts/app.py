@@ -1,42 +1,40 @@
 from flask import Flask, request, jsonify
 import numpy as np
 import tensorflow as tf
-import requests
-from pre_process1 import preprocess_image
-from ImageDataPreparation import load_data
+import cv2
 import os
 
 app = Flask(__name__)
+
 
 model = tf.keras.models.load_model("../models/Aghilas_modele.h5")
 
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
-        file = request.files['file']
-        print("file : ", file)
-        file_path = "temp_image.jpeg"
-        file.save(file_path)
+        if 'image' not in request.files:
+            return jsonify({'error'})
 
-        img = load_data(file_path)
-        print("img : ", img)
+        # Lire l'image chargé
+        image = request.files['image'].read()
+        image = np.frombuffer(image, np.uint8)
+        image = cv2.imdecode(image, cv2.IMREAD_COLOR)
 
-        processed_image = preprocess_image(img)
+        image = cv2.resize(image, (224, 224))
+        image = image / 255.0
 
-        print("processed image : ", processed_image)
-        prediction = model.predict(processed_image)
+        # Make a prediction using the model
+        prediction = model.predict(np.array([image]))
 
         if prediction > 0.5:
-            result = "Pneumonia"
+            res = "Pneumonia"
         else:
-            result = "Normal"
+            res = "Normal"
 
-        os.remove(file_path)
-
-        return jsonify({"result": result})
+        return jsonify({'pred': res})
 
     except Exception as e:
-        return jsonify({"error": str(e)})
+        return jsonify({'error': str(e)})
 
 if __name__ == '__main__':
     app.run(debug=True)
